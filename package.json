@@ -14,13 +14,19 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.11",
+    "@elevenlabs/elevenlabs-js": "^2.25.0",
+    "@openrouter/ai-sdk-provider": "^1.2.7",
+    "@openrouter/sdk": "^0.1.27",
     "@voltagent/cli": "^0.1.10",
-    "@voltagent/core": "^1.0.0",
+    "@voltagent/core": "^1.2.10",
     "@voltagent/libsql": "^1.0.0",
     "@voltagent/logger": "^1.0.0",
-    "@voltagent/server-hono": "^1.0.0",
+    "@voltagent/server-hono": "^1.2.5",
+    "@voltagent/voice": "^1.0.2",
     "ai": "^5.0.104",
-    "dotenv": "^16.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
