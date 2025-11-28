@@ -145,8 +145,10 @@ const voltAgent = new VoltAgent({
       app.post("/api/voice", async (c) => {
         try {
           const body = await c.req.arrayBuffer();
+          console.log("body", body)
           const stream = Readable.from(Buffer.from(body));
           const text = await elevenVoice.listen(stream);
+          console.log("text", text)
           return c.json({ success: true, transcription: text });
         } catch (err: any) {
           return c.json({ error: err.message }, 500);
@@ -157,6 +159,7 @@ const voltAgent = new VoltAgent({
       app.post("/api/sound", async (c) => {
         try {
           const { text } = await c.req.json();
+          console.log("audio text", text)
           if (!text) return c.json({ error: "No text provided" }, 400);
  
           const response = await eleven.textToSpeech.convert("JBFqnCBsd6RMkjVDRZzb", {
@@ -167,6 +170,7 @@ const voltAgent = new VoltAgent({
  
           const reader = response.getReader();
           const audioBuffer = await webStreamToBuffer(reader);
+          console.log("audio audioBuffer", audioBuffer)
  
           return new Response(audioBuffer, {
             headers: {
