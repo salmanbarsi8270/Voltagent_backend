@@ -90,7 +90,7 @@ async function webStreamToBuffer(reader: any) {
  
 /* ---------------- 🎤 SPEECH → TEXT SETUP ---------------- */
 const elevenVoice = new ElevenLabsVoiceProvider({
-  apiKey: `${process.env.ELEVENLABS_API_KEY}`
+  apiKey: `sk_30b1313a431e4adee9513d521a5dcb1e19dd735f40c15325`
 });
  
 /* ------------- SINGLE HONO SERVER WITH ALL ROUTES ------------- */
@@ -147,6 +147,7 @@ const voltAgent = new VoltAgent({
           const body = await c.req.arrayBuffer();
           console.log("body", body)
           const stream = Readable.from(Buffer.from(body));
+          console.log("audio stream", stream)
           const text = await elevenVoice.listen(stream);
           console.log("text", text)
           return c.json({ success: true, transcription: text });
@@ -159,7 +160,7 @@ const voltAgent = new VoltAgent({
       app.post("/api/sound", async (c) => {
         try {
           const { text } = await c.req.json();
-          console.log("audio text", text)
+          console.log("sound text", text)
           if (!text) return c.json({ error: "No text provided" }, 400);
  
           const response = await eleven.textToSpeech.convert("JBFqnCBsd6RMkjVDRZzb", {
@@ -167,10 +168,12 @@ const voltAgent = new VoltAgent({
             modelId: "eleven_multilingual_v2",
             outputFormat: "mp3_44100_128"
           });
+          console.log("sound response", response)
  
           const reader = response.getReader();
+          console.log("sound reader", reader)
           const audioBuffer = await webStreamToBuffer(reader);
-          console.log("audio audioBuffer", audioBuffer)
+          console.log("sound audioBuffer", audioBuffer)
  
           return new Response(audioBuffer, {
             headers: {
