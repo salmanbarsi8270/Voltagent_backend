@@ -152,6 +152,7 @@ const voltAgent = new VoltAgent({
           console.log("text", text)
           return c.json({ success: true, transcription: text });
         } catch (err: any) {
+          console.error(err)
           return c.json({ error: err.message }, 500);
         }
       });
@@ -182,6 +183,7 @@ const voltAgent = new VoltAgent({
           });
  
         } catch (err: any) {
+          console.error(err)
           return c.json({ error: err.message }, 500);
         }
       });
