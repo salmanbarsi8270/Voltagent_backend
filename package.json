@@ -10,7 +10,9 @@
     "lint": "biome check ./src",
     "lint:fix": "biome check --write ./src",
     "typecheck": "tsc --noEmit",
-    "volt": "volt"
+    "volt": "volt",
+    "tunnel": "pnpm volt tunnel 3141",
+    "console": "pnpm tunnel"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.11",

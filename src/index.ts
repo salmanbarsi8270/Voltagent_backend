@@ -1,6 +1,7 @@
 // server.js
-import express from "express";
-import cors from "cors";
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { cors } from "hono/cors";
 import dotenv from "dotenv";
 import { Agent, stepCountIs } from "@voltagent/core";
 import VoltAgent from "@voltagent/core";
@@ -12,9 +13,17 @@ import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { Readable } from "stream";
 
 dotenv.config();
-const app = express();
-app.use(express.json());
-app.use(cors());
+
+/* -------------------- HONO APP -------------------- */
+const app = new Hono();
+
+// Apply CORS middleware (Hono native)
+app.use("*", cors({
+  origin: "*",
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
 
 /* -------------------- OPENROUTER PROVIDER -------------------- */
 export const openrouter = createOpenRouter({
@@ -82,40 +91,59 @@ new VoltAgent({
 });
 
 /* ---------------- 📌 CHAT ROUTE (SSE STREAMING) ---------------- */
-app.get("/api/chat", async (req, res) => {
+app.get("/api/chat", async (c) => {
   try {
-    const prompt = req.query.prompt as string;
+    const prompt = c.req.query("prompt");
     
     if (!prompt) {
-      return res.status(400).json({ error: "Prompt is required" });
+      return c.json({ error: "Prompt is required" }, 400);
     }
 
     console.log("Received prompt:", prompt);
 
     // Set headers for Server-Sent Events (SSE)
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    c.header("Content-Type", "text/event-stream");
+    c.header("Cache-Control", "no-cache");
+    c.header("Connection", "keep-alive");
+    c.header("Access-Control-Allow-Origin", "*");
 
     const result = await managerAgent.streamText(prompt, { 
       stopWhen: stepCountIs(20) 
     });
 
-    // Stream each chunk
-    for await (const chunk of result.textStream) {
-      console.log("Streaming chunk:", chunk);
-      res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-    }
+    // Create a readable stream for SSE
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.textStream) {
+            console.log("Streaming chunk:", chunk);
+            const data = `data: ${JSON.stringify({ content: chunk })}\n\n`;
+            controller.enqueue(new TextEncoder().encode(data));
+          }
+          
+          // Send completion signal
+          const doneData = `data: ${JSON.stringify({ done: true })}\n\n`;
+          controller.enqueue(new TextEncoder().encode(doneData));
+          controller.close();
+        } catch (err: any) {
+          const errorData = `data: ${JSON.stringify({ error: err.message })}\n\n`;
+          controller.enqueue(new TextEncoder().encode(errorData));
+          controller.close();
+        }
+      }
+    });
 
-    // Send completion signal
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      }
+    });
 
   } catch (err: any) {
     console.error("Chat error:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
+    return c.json({ error: err.message }, 500);
   }
 });
 
@@ -124,22 +152,16 @@ const elevenVoice = new ElevenLabsVoiceProvider({
   apiKey: `${process.env.ELEVENLABS_API_KEY}`
 });
 
-app.post("/api/voice", async (req, res) => {
+app.post("/api/voice", async (c) => {
   try {
-    const chunks: any[] = [];
-    
-    req.on('data', chunk => chunks.push(chunk));
-    
-    req.on('end', async () => {
-      const buffer = Buffer.concat(chunks);
-      const stream = Readable.from(buffer);
+    const buffer = await c.req.arrayBuffer();
+    const stream = Readable.from(Buffer.from(buffer));
 
-      const text = await elevenVoice.listen(stream);
-      res.json({ success: true, transcription: text });
-    });
+    const text = await elevenVoice.listen(stream);
+    return c.json({ success: true, transcription: text });
 
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return c.json({ error: err.message }, 500);
   }
 });
 
@@ -162,10 +184,10 @@ async function webStreamToBuffer(reader: any) {
   return Buffer.concat(chunks);
 }
 
-app.post("/api/sound", async (req, res) => {
+app.post("/api/sound", async (c) => {
   try {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "No text provided" });
+    const { text } = await c.req.json();
+    if (!text) return c.json({ error: "No text provided" }, 400);
 
     const response = await eleven.textToSpeech.convert("JBFqnCBsd6RMkjVDRZzb", {
       text,
@@ -176,13 +198,21 @@ app.post("/api/sound", async (req, res) => {
     const reader = response.getReader();
     const audioBuffer = await webStreamToBuffer(reader);
 
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.send(audioBuffer);
+    return new Response(audioBuffer, {
+      headers: {
+        "Content-Type": "audio/mpeg"
+      }
+    });
 
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return c.json({ error: err.message }, 500);
   }
 });
 
 /* ---------------------- START SERVER ---------------------- */
-app.listen(3001, () => console.log("🚀 Node AI Server Running on PORT 3001"));
+serve({
+  fetch: app.fetch,
+  port: 3001
+}, () => {
+  console.log("🚀 Hono AI Server Running on PORT 3001");
+});
